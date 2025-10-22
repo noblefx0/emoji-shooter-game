@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Emoji Shooter</title>
+    
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #0d0d1a;
+            overflow: hidden; 
+            user-select: none;
+        }
+
+        #game-board {
+            width: 350px; 
+            height: 600px;
+            background-color: #000000;
+            border: 3px solid #00ffff;
+            position: relative; 
+            overflow: hidden;
+            touch-action: none; 
+        }
+
+        /* PLAYER STYLE (Monkey Emoji) */
+        #player {
+            width: 30px;
+            height: 30px;
+            background: none; 
+            font-size: 28px; 
+            text-align: center;
+            line-height: 30px;
+            position: absolute;
+            bottom: 10px; 
+            left: 160px; 
+            border-radius: 5px;
+        }
+
+        /* Score Display */
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #00ffff;
+            font-size: 1.2em;
+            z-index: 10; 
+            font-family: sans-serif;
+        }
+        
+        /* LIVES DISPLAY STYLE */
+        #lives {
+            position: absolute;
+            top: 10px;
+            right: 100px; 
+            color: #ff0000; 
+            font-size: 1.2em;
+            z-index: 10; 
+            font-family: sans-serif;
+            font-weight: bold;
+        }
+
+        /* Elements created by JavaScript */
+        .bullet {
+            width: 4px;
+            height: 12px;
+            background-color: #ff00ff; /* Magenta bullet (default) */
+            position: absolute;
+        }
+        
+        /* NEW STYLE FOR POWERED-UP BULLETS */
+        .bullet.powered-up {
+            background-color: #00ff00; /* Bright Green */
+        }
+
+
+        /* FALLING ENEMY STYLE */
+        .enemy {
+            width: 40px;
+            height: 40px;
+            background: none; 
+            font-size: 36px; 
+            text-align: center;
+            line-height: 40px;
+            position: absolute;
+            border-radius: 5px;
+        }
+        
+        /* Game Over Screen */
+        #game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.95);
+            color: #ff00ff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            text-align: center;
+            font-family: sans-serif;
+        }
+
+        #game-over-screen h1 {
+            color: #ff0000;
+        }
+
+        #game-over-screen button {
+            padding: 10px 20px;
+            margin-top: 20px;
+            font-size: 1.1em;
+            cursor: pointer;
+            background-color: #00ffff;
+            border: none;
+            border-radius: 5px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* === MOBILE CONTROLS STYLES === */
+        #controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 350px;
+            margin-top: 10px;
+        }
+
+        /* Positioning and styling the Pause Button */
+        #pause-button { 
+            position: absolute;
+            top: 5px;            
+            right: 5px;          
+            padding: 5px 10px;    
+            font-size: 0.9em;    
+            z-index: 10;         
+            background-color: #5555ff; 
+            border-color: #5555ff;
+            cursor: pointer;
+            border-radius: 8px;
+            color: white;
+            border: 2px solid #5555ff;
+            font-weight: bold;
+        }
+        
+        /* General control buttons */
+        #controls button {
+            padding: 15px 30px; 
+            font-size: 1.5em; 
+            font-weight: bold;
+            color: white;
+            background-color: #333;
+            border: 2px solid #00ffff;
+            border-radius: 8px;
+            cursor: pointer;
+            user-select: none;
+            flex-grow: 1; 
+            margin: 0 5px;
+            opacity: 0.8;
+            transition: opacity 0.1s;
+        }
+
+        #controls button:active {
+            opacity: 1; 
+        }
+
+        #shoot-button {
+            background-color: #ff00ff;
+            border-color: #ff00ff;
+            flex-grow: 1.5; 
+        }
+    </style>
+</head>
+<body>
+    <div id="game-board">
+        <div id="score">Score: 0</div>
+        
+        <div id="lives">Lives: 3</div>
+
+        <button id="pause-button">PAUSE</button> 
+        
+        <div id="player">🐒</div>
+        
+        <div id="game-over-screen" class="hidden">
+            <h1>GAME OVER</h1>
+            <p id="final-score"></p>
+            <button onclick="window.location.reload()">Play Again</button>
+        </div>
+    </div>
+    
+    <div id="controls">
+        <button id="move-left">◀️</button>
+        <button id="shoot-button">FIRE</button>
+        <button id="move-right">▶️</button>
+    </div>
+
+    <script>
+        const gameBoard = document.getElementById('game-board');
+        const player = document.getElementById('player');
+        const scoreDisplay = document.getElementById('score');
+        const livesDisplay = document.getElementById('lives'); 
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const finalScoreDisplay = document.getElementById('final-score');
+        
+        const moveLeftButton = document.getElementById('move-left');
+        const moveRightButton = document.getElementById('move-right');
+        const shootButton = document.getElementById('shoot-button');
+        const pauseButton = document.getElementById('pause-button'); 
+
+        const boardWidth = 350;
+
+        // --- Game State and Variables ---
+        let playerX = 160; 
+        const playerSpeed = 10;
+        const bulletSpeed = 7;
+        
+        let enemySpeed = 2; 
+        let spawnRate = 1500; 
+
+        // DIFFICULTY SCALING CONSTANTS 
+        const difficultyInterval = 15000; 
+        const speedIncrement = 0.25;     
+        const rateDecrement = 25;        
+
+        let score = 0; 
+        let lives = 3; 
+        let gameOver = false; 
+        let isPaused = false; 
+        let gameLoopId; 
+        let spawnIntervalId; 
+        let difficultyIntervalId; 
+
+        // POWER-UP STATE
+        let isTripleShotActive = false;     
+        let tripleShotTimerId = null;       
+        const tripleShotDuration = 5000;    
+
+        let bullets = []; 
+        let enemies = []; 
+        let keysPressed = {}; 
+        
+        // --- EMOJI ENEMY LISTS ---
+        const criticalEnemyEmojis = [
+            { emoji: '🌶️', points: 10, isCritical: true }, 
+            { emoji: '🥘', points: 10, isCritical: true }, 
+            { emoji: '⚓', points: 10, isCritical: true }, 
+            { emoji: '🍉', points: 10, isCritical: true }
+        ]; 
+        const nonCriticalEnemyEmojis = [
+            { emoji: '🐵', points: -30, isCritical: false }, 
+            { emoji: '🍌', points: -30, isCritical: false },
+            { emoji: '🤑', points: 50, isCritical: false }, 
+            { emoji: '⚡️', points: 0, isCritical: false, type: 'triple-shot' }
+        ];
+        const allEnemyEmojis = [...criticalEnemyEmojis, ...nonCriticalEnemyEmojis];
+        
+        const emojiWidth = 40; 
+        const boardHeight = gameBoard.offsetHeight;
+
+        // --- Game Logic Functions ---
+
+        function updateScore() {
+            scoreDisplay.textContent = `Score: ${score}`;
+        }
+        
+        function updateLives() { 
+            livesDisplay.textContent = `Lives: ${lives}`;
+        }
+
+        function endGame() {
+            if (gameOver) return; 
+
+            gameOver = true;
+            
+            cancelAnimationFrame(gameLoopId);
+            clearInterval(spawnIntervalId);
+            clearInterval(difficultyIntervalId); 
+            clearTimeout(tripleShotTimerId); 
+            player.textContent = '🐒'; // Ensure player is reset if power-up was active
+
+            finalScoreDisplay.textContent = `You scored ${score} points!`;
+            gameOverScreen.classList.remove('hidden');
+        }
+
+        function togglePause() { 
+            if (gameOver) return; 
+
+            isPaused = !isPaused;
+            pauseButton.textContent = isPaused ? 'RESUME' : 'PAUSE';
+
+            if (isPaused) {
+                cancelAnimationFrame(gameLoopId);
+                clearInterval(spawnIntervalId);
+                clearInterval(difficultyIntervalId); 
+            } else {
+                gameLoopId = requestAnimationFrame(updateGame);
+                startEnemySpawning(); 
+                startDifficultyTimer(); 
+            }
+        }
+
+        function increaseDifficulty() { 
+            enemySpeed += speedIncrement;
+            spawnRate = Math.max(500, spawnRate - rateDecrement); 
+
+            clearInterval(spawnIntervalId);
+            spawnIntervalId = setInterval(createEnemy, spawnRate);
+        }
+        
+        function activateTripleShot() { 
+            // 1. Clear old timer if already active (to refresh duration)
+            if (isTripleShotActive) {
+                clearTimeout(tripleShotTimerId);
+            }
+            
+            isTripleShotActive = true;
+            
+            // 2. CHANGE PLAYER APPEARANCE: Monkey -> Star-Struck
+            player.textContent = '🦍'; 
+
+            // 3. Set a timer to turn the power-up off after the duration
+            tripleShotTimerId = setTimeout(() => {
+                isTripleShotActive = false;
+                
+                // REVERT PLAYER APPEARANCE: Star-Struck -> Monkey
+                player.textContent = '🐒'; 
+
+            }, tripleShotDuration);
+        }
+
+        function createBullet() { 
+            const playerCenter = playerX + player.offsetWidth / 2;
+            
+            let bulletPositions = [];
+            
+            if (isTripleShotActive) {
+                bulletPositions = [
+                    playerCenter - 10, 
+                    playerCenter - 2,  
+                    playerCenter + 6   
+                ];
+            } else {
+                bulletPositions = [playerCenter - 2];
+            }
+
+            bulletPositions.forEach(bulletX => {
+                const bulletElement = document.createElement('div');
+                bulletElement.className = 'bullet';
+                
+                // ADD CLASS FOR GREEN BULLETS
+                if (isTripleShotActive) {
+                    bulletElement.classList.add('powered-up');
+                }
+
+                const bulletY = 30; 
+                
+                bulletElement.style.left = bulletX + 'px';
+                bulletElement.style.bottom = bulletY + 'px'; 
+                
+                gameBoard.appendChild(bulletElement);
+                bullets.push({element: bulletElement, y: bulletY, x: bulletX});
+            });
+        }
+
+        function createEnemy() {
+            const enemyElement = document.createElement('div');
+            enemyElement.className = 'enemy';
+            
+            const randomIndex = Math.floor(Math.random() * allEnemyEmojis.length);
+            const enemyData = allEnemyEmojis[randomIndex];
+            
+            enemyElement.textContent = enemyData.emoji;
+            enemyElement.dataset.points = enemyData.points; 
+            enemyElement.dataset.critical = enemyData.isCritical; 
+            enemyElement.dataset.type = enemyData.type || 'standard'; 
+
+            const enemyX = Math.floor(Math.random() * (boardWidth - emojiWidth)); 
+            const enemyY = 0; 
+            
+            enemyElement.style.left = enemyX + 'px';
+            enemyElement.style.top = -emojiWidth + 'px'; 
+            gameBoard.appendChild(enemyElement);
+            enemies.push({element: enemyElement, y: enemyY, x: enemyX});
+        }
+
+        function checkCollisions() { 
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const bullet = bullets[i];
+                const bulletRect = bullet.element.getBoundingClientRect(); 
+
+                for (let j = enemies.length - 1; j >= 0; j--) {
+                    const enemy = enemies[j];
+                    const enemyRect = enemy.element.getBoundingClientRect(); 
+
+                    if (
+                        bulletRect.left < enemyRect.right &&
+                        bulletRect.right > enemyRect.left &&
+                        bulletRect.top < enemyRect.bottom &&
+                        bulletRect.bottom > enemyRect.top
+                    ) {
+                        if (enemy.element.dataset.type === 'triple-shot') {
+                            activateTripleShot(); 
+                        }
+
+                        const points = parseInt(enemy.element.dataset.points);
+                        score += points;
+                        updateScore();
+                        
+                        enemy.element.remove();
+                        enemies.splice(j, 1);
+                        
+                        bullet.element.remove();
+                        bullets.splice(i, 1); 
+                        
+                        break; 
+                    }
+                }
+            }
+        }
+
+        // --- Main Game Loop ---
+
+        function updateGame() {
+            if (gameOver || isPaused) return; 
+
+            // 1. Handle Player Movement
+            if (keysPressed['ArrowLeft'] || keysPressed['a']) {
+                playerX -= playerSpeed;
+            }
+            if (keysPressed['ArrowRight'] || keysPressed['d']) {
+                playerX += playerSpeed;
+            }
+            playerX = Math.max(0, Math.min(playerX, boardWidth - player.offsetWidth));
+            player.style.left = playerX + 'px';
+
+            // 2. Handle Bullet Movement
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const bullet = bullets[i];
+                bullet.y += bulletSpeed; 
+                bullet.element.style.bottom = bullet.y + 'px';
+
+                if (bullet.y > boardHeight) {
+                    bullet.element.remove();
+                    bullets.splice(i, 1);
+                }
+            }
+
+            // 3. Handle Enemy Movement and Game Over Check
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                
+                enemy.y += enemySpeed; 
+                enemy.element.style.top = enemy.y + 'px';
+
+                if (enemy.y > boardHeight) {
+                    const isCritical = enemy.element.dataset.critical === 'true'; 
+                    
+                    if (isCritical) {
+                        lives -= 1;
+                        updateLives();
+
+                        enemy.element.remove();
+                        enemies.splice(i, 1);
+                        
+                        if (lives <= 0) {
+                            endGame();
+                            return; 
+                        }
+                    } else {
+                        enemy.element.remove();
+                        enemies.splice(i, 1);
+                    }
+                    continue; 
+                }
+            }
+
+            // 4. Check for Collisions
+            checkCollisions();
+
+            gameLoopId = requestAnimationFrame(updateGame);
+        }
+        
+        // --- Input Handler Functions (Unchanged) ---
+        
+        function pressMovementKey(key) {
+            if (!gameOver && !isPaused) { 
+                keysPressed[key] = true;
+            }
+        }
+
+        function releaseMovementKey(key) {
+            keysPressed[key] = false;
+        }
+
+        function handleShooting() {
+            if (gameOver || isPaused) return; 
+            
+            if (!keysPressed['shooting']) {
+                createBullet();
+                keysPressed['shooting'] = true; 
+                
+                setTimeout(() => { keysPressed['shooting'] = false; }, 200); 
+            }
+        }
+
+        // --- Event Listeners (Unchanged) ---
+        
+        document.addEventListener('keydown', (event) => {
+            if (event.key.toLowerCase() === 'p') {
+                togglePause();
+            }
+            if (gameOver || isPaused) return; 
+            
+            keysPressed[event.key] = true;
+            if (event.key === ' ') {
+                if (!keysPressed['shooting']) {
+                    createBullet();
+                }
+                keysPressed['shooting'] = true;
+            }
+        });
+
+        document.addEventListener('keyup', (event) => {
+            if (gameOver || isPaused) return; 
+            keysPressed[event.key] = false;
+            if (event.key === ' ') {
+                keysPressed['shooting'] = false;
+            }
+        });
+
+        pauseButton.addEventListener('click', togglePause);
+        pauseButton.addEventListener('touchstart', (e) => { e.preventDefault(); togglePause(); });
+
+        moveLeftButton.addEventListener('mousedown', () => pressMovementKey('ArrowLeft'));
+        moveLeftButton.addEventListener('mouseup', () => releaseMovementKey('ArrowLeft'));
+        moveLeftButton.addEventListener('touchstart', (e) => { e.preventDefault(); pressMovementKey('ArrowLeft'); });
+        moveLeftButton.addEventListener('touchend', () => releaseMovementKey('ArrowLeft'));
+
+        moveRightButton.addEventListener('mousedown', () => pressMovementKey('ArrowRight'));
+        moveRightButton.addEventListener('mouseup', () => releaseMovementKey('ArrowRight'));
+        moveRightButton.addEventListener('touchstart', (e) => { e.preventDefault(); pressMovementKey('ArrowRight'); });
+        moveRightButton.addEventListener('touchend', () => releaseMovementKey('ArrowRight'));
+
+        shootButton.addEventListener('mousedown', (e) => { e.preventDefault(); handleShooting(); });
+        shootButton.addEventListener('touchstart', (e) => { e.preventDefault(); handleShooting(); });
+
+
+        // --- Initialization ---
+
+        function startEnemySpawning() {
+            spawnIntervalId = setInterval(createEnemy, spawnRate);
+        }
+        
+        function startDifficultyTimer() { 
+            difficultyIntervalId = setInterval(increaseDifficulty, difficultyInterval);
+        }
+
+        // Start the game!
+        updateScore(); 
+        updateLives(); 
+        gameLoopId = requestAnimationFrame(updateGame);
+        startEnemySpawning();
+        startDifficultyTimer(); 
+    </script>
+</body>
+</html>
