@@ -1,1164 +1,931 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Flappy CHUMP</title>
-  <script type="module">
-    // Import the functions you need from the SDKs you need
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot, getDocs, query, where, doc, updateDoc } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>The Jungle Monkey</title>
+    
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #0d0d1a;
+            overflow: hidden; 
+            user-select: none;
+        }
 
-    // Your web app's Firebase configuration
-    const firebaseConfig = {
-      apiKey: "AIzaSyC4O1Ll7XPCP3VpweybYd90MX9-thsdfiA",
-      authDomain: "flappy-chump.firebaseapp.com",
-      projectId: "flappy-chump",
-      storageBucket: "flappy-chump.firebasestorage.app",
-      messagingSenderId: "734379304815",
-      appId: "1:734379304815:web:11f9a48e8c2e9713c72a9a"
-    };
+        #game-board {
+            width: 350px; 
+            height: 600px;
+            background-color: #000000;
+            border: 3px solid blue; /* Theme Color */
+            position: relative; 
+            overflow: hidden;
+            touch-action: none; 
+            z-index: 1; 
+        }
 
-    // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    console.log("Firestore initialized:", db);
+        /* PLAYER STYLE (Monkey Emoji) */
+        #player {
+            width: 40px;
+            height: 40px;
+            background: none; 
+            font-size: 38px;
+            text-align: center;
+            line-height: 40px;
+            position: absolute;
+            bottom: 10px; 
+            left: 155px; 
+            border-radius: 5px;
+            user-select: none;
+            cursor: grab; 
+        }
 
-    // UUID generation function
-    function generateUUID() {
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-      });
-    }
+        /* Score Display (FIXED POSITION) */
+        #score {
+            position: absolute;
+            top: 5px; 
+            left: 130px; /* Moved slightly left */
+            transform: none; 
+            color: #FFD700; 
+            font-size: 1.2em;
+            z-index: 10; 
+            font-family: sans-serif;
+            white-space: nowrap;
+        }
+        
+        #high-score {
+            position: absolute;
+            top: 5px; 
+            right: 5px; 
+            color: #FFD700; 
+            font-size: 1.2em;
+            z-index: 10; 
+            font-family: sans-serif;
+            white-space: nowrap;
+        }
 
-    // Initialize player data
-    let uuid = localStorage.getItem('flappyChumpUUID') || generateUUID();
-    let displayName = localStorage.getItem('flappyChumpDisplayName');
-    let highScore = parseInt(localStorage.getItem('flappyMonkeyHighScore')) || 0;
-    let bananaScore = parseInt(localStorage.getItem('flappyMonkeyBananaScore')) || 0;
+        /* LIVES DISPLAY STYLE */
+        #lives {
+            position: absolute;
+            top: 5px; 
+            left: 5px; 
+            color: #ff0000; 
+            font-size: 1.2em;
+            z-index: 10; 
+            font-family: sans-serif;
+            font-weight by: bold;
+        }
 
-    if (!displayName) {
-      let nameInput;
-      do {
-        nameInput = prompt("Enter your display name (min 4 characters):");
-        if (!nameInput) nameInput = `Anonymous_${uuid.slice(0, 8)}`;
-      } while (nameInput.length < 4);
-      displayName = nameInput;
-      localStorage.setItem('flappyChumpDisplayName', displayName);
-    }
-    localStorage.setItem('flappyChumpUUID', uuid);
-  </script>
-  <style>
-    /* [Your existing CSS remains unchanged] */
-    body {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      margin: 0;
-      background: #1E3A8A;
-      font-family: Arial, sans-serif;
-      overflow: hidden;
-    }
-    #game-board {
-      width: 400px;
-      height: 700px;
-      position: relative;
-      overflow: hidden;
-      border: 6px solid #1E40AF;
-      box-shadow: 0 0 10px rgba(30, 64, 175, 0.3);
-      touch-action: none;
-      user-select: none;
-      background: url('https://i.pinimg.com/736x/4e/8e/c3/4e8ec376a1f587c358739ef3c233f253.jpg') center/cover no-repeat;
-      z-index: 0;
-    }
-    #chump {
-      position: absolute;
-      width: 50px;
-      height: 50px;
-      left: 100px;
-      top: 325px;
-      background-size: contain;
-      background-repeat: no-repeat;
-      z-index: 10;
-      transition: transform 0.05s linear;
-    }
-    #rocket-video {
-      display: none;
-      position: absolute;
-      width: 50px;
-      height: 50px;
-      z-index: 11;
-    }
-    .obstacle {
-      position: absolute;
-      width: 40px;
-      height: auto;
-      background-color: #cc0000;
-      border: 1px solid #660000;
-      z-index: 5;
-      box-sizing: border-box;
-    }
-    .obstacle.top { top: 0; border-bottom: 5px solid #660000; }
-    .obstacle.bottom { bottom: 0; border-top: 5px solid #660000; }
-    #score {
-      position: absolute;
-      top: 20px;
-      width: 100%;
-      text-align: center;
-      font-size: 3em;
-      color: #3B82F6;
-      text-shadow: 2px 2px #1E3A8A;
-      z-index: 20;
-    }
-    #high-score {
-      position: absolute;
-      top: 60px;
-      width: 100%;
-      text-align: center;
-      font-size: 1.5em;
-      color: #FFD700;
-      text-shadow: 2px 2px #000000;
-      z-index: 20;
-    }
-    #banana-score {
-      position: absolute;
-      top: 100px;
-      width: 100%;
-      text-align: center;
-      font-size: 1.5em;
-      color: #FFD700;
-      text-shadow: 2px 2px #000000;
-      z-index: 20;
-    }
-    .banana {
-      position: absolute;
-      width: 30px;
-      height: 30px;
-      font-size: 30px;
-      text-align: center;
-      line-height: 30px;
-      z-index: 15;
-    }
-    /* SCREENS */
-    #character-select, #game-over-screen, #howto-screen, #room-screen, #leaderboard-screen {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(30, 58, 138, 0.9);
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 30;
-      color: white;
-      text-align: center;
-      padding: 20px;
-      box-sizing: border-box;
-    }
-    #unlock-confirmation {
-      position: absolute;
-      width: 300px;
-      height: 200px;
-      background: rgba(30, 58, 138, 0.95);
-      border: 4px solid #1E40AF;
-      border-radius: 12px;
-      box-shadow: 0 0 10px rgba(30, 64, 175, 0.5);
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 45;
-      padding: 15px;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-    }
-    #character-select h1, #game-over-screen h1, #howto-screen h1, #room-screen h1, #leaderboard-screen h1, #unlock-confirmation h1 {
-      color: #ffffff;
-      background: linear-gradient(to right, #FF0000, #FFFF00, #00FF00);
-      -webkit-background-clip: text;
-      background-clip: text;
-      -webkit-text-fill-color: transparent;
-      font-family: "Impact", "Haettenschweiler", "Arial Black", sans-serif;
-      font-size: 2em;
-      text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.7);
-      margin: 0;
-    }
-    #unlock-confirmation h1 {
-      font-size: 1.5em;
-    }
-    #character-select p, #game-over-screen p, #howto-screen p, #room-screen p, #leaderboard-screen p, #unlock-confirmation p {
-      color: #ccc;
-      margin: 8px 0;
-      font-size: 1em;
-    }
-    /* CHARACTER GRID */
-    #character-grid, #room-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 15px;
-      margin: 20px 0;
-      max-width: 320px;
-    }
-    #room-grid {
-      height: 260px;
-      overflow-y: auto;
-    }
-    .char-option {
-      width: 80px;
-      height: 80px;
-      background-size: contain;
-      background-repeat: no-repeat;
-      background-position: center;
-      cursor: pointer;
-      border: 6px solid transparent;
-      border-radius: 12px;
-      transition: all 0.2s;
-      box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
-      position: relative;
-      touch-action: manipulation;
-    }
-    .char-option.selected {
-      border-color: #1E40AF;
-      transform: scale(1.1);
-      box-shadow: 0 0 10px #1E40AF;
-    }
-    .char-option.locked {
-      filter: grayscale(100%);
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-    .char-option.locked::after {
-      content: "🔒";
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 2em;
-      z-index: 5;
-    }
-    .char-option.locked .cost {
-      position: absolute;
-      bottom: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 1.2em;
-      font-weight: bold;
-      color: #FFC107;
-      text-shadow: 2px 2px 4px #000;
-    }
-    .char-option:active { transform: scale(1.05); }
-    /* BIG PREVIEW */
-    #char-preview, #room-preview, #unlock-preview {
-      width: 100px;
-      height: 100px;
-      background-size: contain;
-      background-repeat: no-repeat;
-      background-position: center;
-      margin: 10px 0;
-      border: 3px solid #1E40AF;
-      border-radius: 8px;
-      box-shadow: 0 0 8px #1E40AF;
-      transition: all 0.3s;
-    }
-    #high-score-label { font-size: 1.2em; color: #FFD700; margin-bottom: 4px; }
-    #new-record { color: #3B82F6; font-weight: bold; margin-top: 8px; font-size: 1.1em; }
-    #howto-screen { z-index: 35; }
-    #howto-screen h1 { font-size: 1.8em; }
-    #howto-screen p { font-size: 0.9em; }
-    #room-screen { z-index: 40; }
-    #room-screen .cost {
-      font-size: 1.2em;
-      color: #FFD700;
-      margin: 10px 0;
-    }
-    #leaderboard-screen {
-      z-index: 45;
-    }
-    #leaderboard-list {
-      max-height: 400px;
-      overflow-y: auto;
-      width: 100%;
-    }
-    .leaderboard-entry {
-      display: flex;
-      flex-direction: column;
-      padding: 10px;
-      margin: 5px 0;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 5px;
-    }
-    button {
-      padding: 10px 20px;
-      font-size: 1em;
-      margin: 5px;
-      background: #1E40AF;
-      color: white;
-      border: 2px solid #1E40AF;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: 0.2s;
-      touch-action: manipulation;
-    }
-    button:hover, button:active {
-      background: #1E3A8A;
-      transform: scale(1.05);
-    }
-    #mute-button {
-      position: absolute;
-      top: 8px;
-      left: 8px;
-      background: #1E40AF;
-      border-color: #1E40AF;
-      z-index: 40;
-      font-size: 0.9em;
-      padding: 6px 10px;
-    }
-    .hidden { display: none !important; }
-    #stats {
-      position: absolute;
-      top: 7px;
-      right: 10px;
-      text-align: right;
-      z-index: 40;
-    }
-    #stats div {
-      margin-bottom: 5px;
-      color: #FFD700;
-      font-size: 1.2em;
-      text-shadow: 2px 2px #000000;
-    }
-  </style>
+        .bullet {
+            width: 4px;
+            height: 12px;
+            background-color: #FF8000; 
+            position: absolute;
+        }
+        
+        .bullet.powered-up {
+            background-color: #00ff00; 
+        }
+
+        .enemy {
+            width: 40px;
+            height: 40px;
+            background: none; 
+            font-size: 36px; 
+            text-align: center;
+            line-height: 40px;
+            position: absolute;
+            border-radius: 5px;
+        }
+        
+        /* Game Over Screen */
+        #game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.95);
+            color: blue; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            text-align: center;
+            font-family: sans-serif;
+        }
+
+        #game-over-screen h1 {
+            color: #FFD700; 
+        }
+
+        #game-over-high-score {
+            color: #FFAA00;
+            font-size: 1.1em;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        #game-over-screen button, #settings-screen button, #settings-screen select {
+            padding: 10px 20px;
+            margin-top: 20px;
+            font-size: 1.1em;
+            cursor: pointer;
+            background-color: #purple; 
+            border: none;
+            border-radius: 5px;
+            color: blue;
+            transition: background-color 0.1s;
+        }
+
+        #game-over-screen button:hover, #settings-screen button:hover, #settings-screen select:hover {
+             background-color: #ffaa4d;
+        }
+        
+        /* Positioning and styling the Pause Button */
+        #pause-button { 
+            position: absolute;
+            top: 35px; /* Moved down to avoid score */
+            right: 5px; 
+            padding: 5px 10px;
+            font-size: 0.8em;
+            z-index: 10;
+            background-color: #5555ff; 
+            border: 2px solid #5555ff;
+            cursor: pointer;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+        }
+        
+        /* Settings Button */
+        #settings-button {
+            position: absolute;
+            top: 35px; /* Moved down to avoid score */
+            right: 80px; 
+            padding: 5px 10px;
+            font-size: 0.8em;
+            z-index: 10;
+            background-color: #888888; 
+            border: 2px solid #888888;
+            cursor: pointer;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+        }
+
+        /* HELP SCREEN STYLES */
+        #help-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(13, 13, 26, 0.98); 
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            box-sizing: border-box;
+            z-index: 30; 
+            text-align: center;
+            font-family: sans-serif;
+            overflow-y: auto; 
+        }
+        
+        /* SETTINGS SCREEN STYLES */
+        #settings-screen {
+             position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(13, 13, 26, 0.98); 
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 30; 
+            text-align: center;
+            font-family: sans-serif;
+        }
+
+        #settings-screen h2 {
+            color: #FFD700;
+            margin-bottom: 30px;
+        }
+        
+        #settings-screen label {
+            font-size: 1.1em;
+            margin-bottom: 10px;
+        }
+        
+        #control-type-select {
+            padding: 8px;
+            border: 2px solid #FF8000;
+            background-color: #0d0d1a;
+            color: white;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+
+
+        .hidden {
+            display: none !important;
+            pointer-events: none !important; 
+        }
+
+        /* === MOBILE CONTROLS STYLES === */
+        #controls {
+            display: flex;
+            justify-content: center; 
+            align-items: center;
+            width: 350px;
+            margin-top: 10px;
+        }
+
+        /* General control buttons (for Button Mode) */
+        #controls button {
+            padding: 15px 30px; 
+            font-size: 1.5em; 
+            font-weight: bold;
+            color: white;
+            border: 2px solid blue; 
+            border-radius: 8px;
+            cursor: pointer;
+            user-select: none;
+            flex-grow: 1; 
+            margin: 0 5px;
+            opacity: 1; 
+            transition: opacity 0.1s;
+            background-color: #333; 
+        }
+        
+        /* Specific shoot button styling */
+        #shoot-button {
+            background-color: #FF8000; 
+            border-color: #FF8000;
+            flex-grow: 1;
+        }
+        
+        /* Styling for when button mode is active */
+        .button-controls #controls button.movement-button {
+             background-color: #333; 
+             flex-grow: 1;
+        }
+        
+    </style>
 </head>
 <body>
-  <div id="game-board">
-    <div id="score">0</div>
-    <div id="high-score">HIGH: 0</div>
-    <div id="banana-score">BANANAS: 0</div>
-    <div id="chump"></div>
-    <video id="rocket-video" preload="auto" muted="true" style="display: none; position: absolute; width: 50px; height: 50px; z-index: 11;">
-      <source src="" type="video/mp4">
-    </video>
+    <div id="game-board">
+        <div id="score">Score: 0</div>
+        <div id="high-score">High Score: 0</div>
+        
+        <div id="lives">Lives: 3</div>
 
-    <!-- CHARACTER SELECT -->
-    <div id="character-select">
-      <div id="stats">
-        <div id="high-score-display">HIGH: <span id="total-high-score">0</span></div>
-        <div id="banana-score-display">BANANAS: <span id="total-bananas">0</span></div>
-      </div>
-      <h1>Flappy CHUMP 🐒</h1>
-      <div id="char-preview"></div>
-      <p id="char-name">Classic Monkey</p>
-      <div id="character-grid"></div>
-      <button id="play-button">PLAY!</button>
-      <button id="room-button">Room</button>
-      <button id="howto-button">How to play</button>
-      <button id="leaderboard-button">Leaderboard</button>
+        <button id="settings-button" class="hidden">⚙️ SETTINGS</button>
+        <button id="pause-button" class="hidden">PAUSE</button> 
+        
+        <div id="settings-screen" class="hidden">
+            <h2>Game Settings</h2>
+            
+            <label for="control-type-select">Movement Controls:</label>
+            <select id="control-type-select">
+                <option value="touch">Touch/Drag</option>
+                <option value="buttons">Buttons (◀️ / ▶️)</option>
+            </select>
+            
+            <button id="close-settings">Back to Game</button>
+        </div>
+        
+        <div id="help-screen" class="hidden">
+            <h2>How to Play The Jungle Monkey</h2>
+            <p><strong>Goal:</strong> Shoot the falling enemies and get the highest score!</p>
+            <p id="movement-instructions"><strong>Movement:</strong> **Touch and drag** the monkey 🐵 left and right!</p>
+            <p><strong>Shooting:</strong> Use the FIRE button or the SPACE bar.</p>
+            
+            <p>
+                <strong>Dangerous Enemies (Dodge or Shoot!):</strong>
+                <span class="enemy-key">🦁</span> <span class="enemy-key">🐐</span> <span class="enemy-key">🐂</span> <span class="enemy-key">🐻</span> <span class="enemy-key">🦛</span><br>
+                💥 If these pass the bottom, you lose a **Life**!
+            </p>
+            
+            <p>
+                <strong>Bonus Items:</strong>
+                <span class="enemy-key" style="color:#FFD700;">🤑</span> Get **+50** points.<br>
+                <span class="enemy-key" style="color:#FFD700;">🍑</span> Get **+30** points.<br>
+                <span class="enemy-key" style="color:#FF8000;">⚡️</span> Activates **Triple Shot**! (You change to 🦍 and bullets turn green).
+            </p>
+            
+            <p>
+                <strong>Negative Items (Avoid!):</strong>
+                <span class="enemy-key" style="color:#ff0000;">🐵</span> <span class="enemy-key" style="color:#ff0000;">🍌</span> Lose **-30** points.
+            </p>
+
+            <p>
+  Earn free N1000:  
+  <a href="https://info.palmpay.com/EyX19WqC" style="color: green;">Palmpay users</a>
+            </p>
+
+                <p>
+    Dev:  <a href="https://x.com/noblect1">Noble</a>
+                </p>
+
+            <button id="close-help">Got it!</button>
+        </div>
+        
+        <div id="player">🐵</div>
+        
+        <div id="game-over-screen" class="hidden">
+            <h1 id="screen-title">THE JUNGLE MONKEY</h1>
+            <p id="final-score" style="font-size: 1.4em;"></p>
+            <p id="game-over-high-score" class="hidden"></p> <button id="restart-button">Start Game</button>
+            <p style="margin-top: 20px; color: #FFD700; font-size: 0.9em;">
+                <span id="open-help-link" style="cursor: pointer; text-decoration: underline; margin-right: 15px;">How to Play (Help)</span>
+                <span id="open-settings-link" style="cursor: pointer; text-decoration: underline;">Settings</span>
+            </p>
+        </div>
+    </div>
+    
+    <div id="controls">
+        <button id="shoot-button">FIRE</button>
     </div>
 
-    <!-- HOW TO -->
-    <div id="howto-screen" class="hidden">
-      <h1>How to Play</h1>
-      <p>Click or tap to flap</p>
-      <p>Pass through gaps to score</p>
-      <p>Avoid candles & collect 🍌 to unlock new characters!</p>
-      <p>And more to come... 🐒</p>
-      <button id="howto-close-button">Got it!</button>
-    </div>
+    <script>
+        const gameBoard = document.getElementById('game-board');
+        const player = document.getElementById('player');
+        const scoreDisplay = document.getElementById('score');
+        const highScoreDisplay = document.getElementById('high-score');
+        const livesDisplay = document.getElementById('lives');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const restartButton = document.getElementById('restart-button');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const gameOverHighScore = document.getElementById('game-over-high-score');
+        const helpScreen = document.getElementById('help-screen');
+        const closeHelpButton = document.getElementById('close-help');
+        const openHelpLink = document.getElementById('open-help-link');
+        const settingsScreen = document.getElementById('settings-screen');
+        const settingsButton = document.getElementById('settings-button');
+        const closeSettingsButton = document.getElementById('close-settings');
+        const openSettingsLink = document.getElementById('open-settings-link');
+        const controlTypeSelect = document.getElementById('control-type-select');
+        const movementInstructions = document.getElementById('movement-instructions');
+        const controlsDiv = document.getElementById('controls');
+        const shootButton = document.getElementById('shoot-button');
+        const pauseButton = document.getElementById('pause-button');
+        
+        // Constants
+        const boardWidth = 350;
+        const boardHeight = 600;
+        const playerWidth = 40; 
+        const bulletHeight = 12;
+        const enemyHeight = 40;
+        const playerSpeed = 10;
+        const bulletSpeed = 8;
+        const HIGH_SCORE_KEY = 'jungleMonkeyHighScore'; 
+        const CONTROL_TYPE_KEY = 'jungleMonkeyControlType';
+        const POWERUP_DURATION = 10000; // 10 seconds
 
-    <!-- GAME OVER -->
-    <div id="game-over-screen" class="hidden">
-      <h1>GAME OVER!</h1>
-      <p id="final-score">Your Score: 0</p>
-      <p id="final-banana-score">Bananas Collected: 0</p>
-      <p id="new-record" class="hidden">NEW RECORD!</p>
-      <button id="go-home-button">Go Back Home</button>
-      <button id="play-again-button">Play Again</button>
-    </div>
+        // Game State and Variables
+        let gameLoopId;
+        let enemySpawnId;
+        let bulletCleanupId;
+        let isPaused = false;
+        let gameOver = true; 
+        let score = 0;
+        let lives = 3;
+        let highScore = 0;
+        let keysPressed = {};
+        let bullets = [];
+        let enemies = [];
+        let enemySpawnRate = 1500; // milliseconds
+        let powerUpTimer = 0; // ms
+        
+        // Enemy Emojis 
+        const enemyTypes = {
+            normal: ['🦁', '🐐', '🐂', '🐻', '🦛'],
+            bonus: ['🍑', '🤑'],
+            negative: ['🐵', '🍌'],
+            powerup: ['⚡️']
+        };
+        
+        // --- Control State ---
+        let controlType = localStorage.getItem(CONTROL_TYPE_KEY) || 'touch';
+        let isDragging = false;
+        let lastTouchX = 0;
+        let playerX = (boardWidth / 2) - (playerWidth / 2); // Center 155
 
-    <!-- ROOM SCREEN -->
-    <div id="room-screen" class="hidden">
-      <h1>Chump Room</h1>
-      <div id="room-preview"></div>
-      <p id="room-name"></p>
-      <p id="room-banana-score">BANANAS: 0</p>
-      <div id="room-grid"></div>
-      <button id="room-back-button">Back</button>
-    </div>
+        // --- Player Movement Functions ---
 
-    <!-- UNLOCK CONFIRMATION -->
-    <div id="unlock-confirmation" class="hidden">
-      <h1>Unlock Character</h1>
-      <div id="unlock-preview"></div>
-      <p id="unlock-message"></p>
-      <button id="unlock-button">Unlock</button>
-      <button id="back-button">Back</button>
-    </div>
-
-    <!-- LEADERBOARD SCREEN -->
-    <div id="leaderboard-screen" class="hidden">
-      <h1>Leaderboard</h1>
-      <div id="leaderboard-list"></div>
-      <button id="leaderboard-back-button">Back</button>
-    </div>
-
-    <button id="mute-button">Speaker</button>
-  </div>
-
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot, getDocs, query, where, doc, updateDoc } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
-
-    // Your web app's Firebase configuration
-    const firebaseConfig = {
-      apiKey: "AIzaSyC4O1Ll7XPCP3VpweybYd90MX9-thsdfiA",
-      authDomain: "flappy-chump.firebaseapp.com",
-      projectId: "flappy-chump",
-      storageBucket: "flappy-chump.firebasestorage.app",
-      messagingSenderId: "734379304815",
-      appId: "1:734379304815:web:11f9a48e8c2e9713c72a9a"
-    };
-
-    // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    console.log("Firestore initialized:", db);
-
-    // UUID generation function
-    function generateUUID() {
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-      });
-    }
-
-    // Initialize player data
-    let uuid = localStorage.getItem('flappyChumpUUID') || generateUUID();
-    let displayName = localStorage.getItem('flappyChumpDisplayName');
-    let highScore = parseInt(localStorage.getItem('flappyMonkeyHighScore')) || 0;
-    let bananaScore = parseInt(localStorage.getItem('flappyMonkeyBananaScore')) || 0;
-
-    if (!displayName) {
-      let nameInput;
-      do {
-        nameInput = prompt("Enter your display name (min 4 characters):");
-        if (!nameInput) nameInput = `Anonymous_${uuid.slice(0, 8)}`;
-      } while (nameInput.length < 4);
-      displayName = nameInput;
-      localStorage.setItem('flappyChumpDisplayName', displayName);
-    }
-    localStorage.setItem('flappyChumpUUID', uuid);
-
-    // Update user stats on load/refresh
-    async function updateUserStats() {
-      try {
-        const q = query(collection(db, 'leaderboard'), where('playerName', '==', uuid));
-        const snapshot = await getDocs(q);
-        let shouldUpdate = false;
-        let currentEntry = null;
-
-        snapshot.forEach((doc) => {
-          currentEntry = doc.data();
-        });
-
-        if (currentEntry) {
-          if (highScore > currentEntry.highScore || bananaScore > currentEntry.bananaScore) {
-            shouldUpdate = true;
-          }
-        } else {
-          shouldUpdate = true; // New user, add entry
+        function updatePlayerPosition() {
+            // Clamping position
+            playerX = Math.max(0, Math.min(playerX, boardWidth - playerWidth));
+            player.style.left = playerX + 'px';
         }
 
-        if (shouldUpdate) {
-          const leaderboardRef = collection(db, 'leaderboard');
-          if (currentEntry) {
-            await updateDoc(doc(leaderboardRef, snapshot.docs[0].id), {
-              highScore: Math.max(highScore, currentEntry.highScore),
-              bananaScore: Math.max(bananaScore, currentEntry.bananaScore),
-              timestamp: new Date()
-            });
-          } else {
-            await addDoc(leaderboardRef, {
-              playerName: uuid,
-              displayName: displayName,
-              highScore: highScore,
-              bananaScore: bananaScore,
-              timestamp: new Date()
-            });
-          }
-          console.log("User stats updated in leaderboard");
-        }
-      } catch (error) {
-        console.error("Error updating user stats: ", error);
-      }
-    }
-    window.addEventListener('load', updateUserStats);
-
-    /* ---------- DOM ELEMENTS ---------- */
-    const gameBoard = document.getElementById('game-board');
-    const chump = document.getElementById('chump');
-    const scoreDisplay = document.getElementById('score');
-    const highScoreDisplay = document.getElementById('high-score');
-    const bananaScoreDisplay = document.getElementById('banana-score');
-    const charSelect = document.getElementById('character-select');
-    const charGrid = document.getElementById('character-grid');
-    const charName = document.getElementById('char-name');
-    const charPreview = document.getElementById('char-preview');
-    const playButton = document.getElementById('play-button');
-    const roomButton = document.getElementById('room-button');
-    const gameOverScreen = document.getElementById('game-over-screen');
-    const finalScoreDisplay = document.getElementById('final-score');
-    const finalBananaScoreDisplay = document.getElementById('final-banana-score');
-    const newRecordMsg = document.getElementById('new-record');
-    const goHomeButton = document.getElementById('go-home-button');
-    const playAgainButton = document.getElementById('play-again-button');
-    const muteButton = document.getElementById('mute-button');
-    const howtoButton = document.getElementById('howto-button');
-    const howtoScreen = document.getElementById('howto-screen');
-    const howtoCloseButton = document.getElementById('howto-close-button');
-    const roomScreen = document.getElementById('room-screen');
-    const roomGrid = document.getElementById('room-grid');
-    const roomPreview = document.getElementById('room-preview');
-    const roomName = document.getElementById('room-name');
-    const roomBackButton = document.getElementById('room-back-button');
-    const roomBananaScore = document.getElementById('room-banana-score');
-    const unlockConfirmation = document.getElementById('unlock-confirmation');
-    const unlockPreview = document.getElementById('unlock-preview');
-    const unlockMessage = document.getElementById('unlock-message');
-    const unlockButton = document.getElementById('unlock-button');
-    const backButton = document.getElementById('back-button');
-    const totalHighScore = document.getElementById('total-high-score');
-    const totalBananas = document.getElementById('total-bananas');
-    const leaderboardScreen = document.getElementById('leaderboard-screen');
-    const leaderboardList = document.getElementById('leaderboard-list');
-    const leaderboardBackButton = document.getElementById('leaderboard-back-button');
-    const leaderboardButton = document.getElementById('leaderboard-button');
-
-    /* ---------- CHARACTER DATA ---------- */
-    const defaultCharacters = {
-      monkey: { name: "Classic Monkey", url: 'https://i.postimg.cc/wMqvcgcM/IMG-1488-2.png', cost: 0, unlocked: true },
-      banana: { name: "Banana Bomber", url: 'https://i.postimg.cc/X7NWJZqC/IMG-1486.png', cost: 0, unlocked: true },
-      coconut: { name: "Coconut Crusher", url: 'https://i.postimg.cc/7h6BvyPb/IMG-1487.png', cost: 0, unlocked: true }
-    };
-
-    const lockedCharacters = [
-      { name: "Cock chump", url: "https://i.postimg.cc/D0ybDcpg/ei-1762113350518-removebg-preview.png", cost: 100 },
-      { name: "Ketchup chump", url: "https://i.postimg.cc/VsJw9VR6/ei-1762114785428-removebg-preview.png", cost: 100 },
-      { name: "Hitman Chump", url: "https://i.postimg.cc/kg7cxkmh/ei-1762117358501-removebg-preview.png", cost: 100 },
-      { name: "pikachump", url: "https://files.catbox.moe/vx5x0m.png", cost: 100 },
-      { name: "New Chump 1", url: "https://files.catbox.moe/zl332r.png", cost: 100 },
-      { name: "New Chump 2", url: "https://files.catbox.moe/8vkirq.png", cost: 100 },
-      { name: "New Chump 3", url: "https://files.catbox.moe/s59m4b.png", cost: 100 },
-      { name: "New Chump 4", url: "https://files.catbox.moe/w4ux27.png", cost: 100 }
-    ];
-
-    let selectedChar = localStorage.getItem('selectedFlappyChar') || 'monkey';
-    let previewedChar = null;
-
-    Object.keys(defaultCharacters).forEach(char => {
-      defaultCharacters[char].unlocked = localStorage.getItem(`flappyCharUnlocked_${char}`) === 'true' || defaultCharacters[char].unlocked;
-    });
-    lockedCharacters.forEach((char, index) => {
-      char.unlocked = localStorage.getItem(`flappyCharUnlocked_locked_${index}`) === 'true' || char.unlocked || false;
-      if (!char.cost) char.cost = 50;
-    });
-
-    function updateCharacterGrid() {
-      charGrid.innerHTML = '';
-      const defaultCharIds = ['monkey', 'banana', 'coconut'];
-      defaultCharIds.forEach(charId => {
-        const char = defaultCharacters[charId];
-        const option = document.createElement('div');
-        option.className = `char-option ${selectedChar === charId ? 'selected' : ''}`;
-        option.dataset.id = charId;
-        option.style.backgroundImage = `url('${char.url}')`;
-        option.addEventListener('click', () => selectCharacter(option));
-        charGrid.appendChild(option);
-      });
-      updateCharacterPreview(selectedChar);
-    }
-
-    updateCharacterGrid();
-
-    function updateCharacterPreview(charId) {
-      const allCharacters = { ...defaultCharacters, ...Object.fromEntries(lockedCharacters.map(c => [c.name.toLowerCase(), c])) };
-      const char = allCharacters[charId] || allCharacters[charId.toLowerCase()];
-      if (char) {
-        charName.textContent = char.name;
-        charPreview.style.backgroundImage = `url('${char.url}')`;
-        chump.style.backgroundImage = `url('${char.url}')`;
-        localStorage.setItem('selectedFlappyChar', charId);
-      }
-    }
-
-    function selectCharacter(option) {
-      const charId = option.dataset.id;
-      const allCharacters = { ...defaultCharacters, ...Object.fromEntries(lockedCharacters.map(c => [c.name.toLowerCase(), c])) };
-      const char = allCharacters[charId] || allCharacters[charId.toLowerCase()];
-      if (char) {
-        if (previewedChar === charId) {
-          if (char.unlocked) {
-            document.querySelectorAll('.char-option').forEach(el => el.classList.remove('selected'));
-            option.classList.add('selected');
-            selectedChar = charId;
-            updateCharacterPreview(charId);
-            previewedChar = null;
-            if (roomScreen.classList.contains('hidden')) {
-              updateCharacterGrid();
-            } else {
-              roomPreview.style.backgroundImage = `url('${char.url}')`;
-              roomName.textContent = char.name;
+        function handleKeyboardMovement() {
+            if (keysPressed['ArrowLeft'] || keysPressed['a']) {
+                playerX -= playerSpeed;
             }
-          } else {
-            showUnlockConfirmation(char);
-          }
-        } else {
-          previewedChar = charId;
-          if (roomScreen.classList.contains('hidden')) {
-            charPreview.style.backgroundImage = `url('${char.url}')`;
-            charName.textContent = char.name;
-          } else {
-            roomPreview.style.backgroundImage = `url('${char.url}')`;
-            roomName.textContent = char.name;
-          }
+            if (keysPressed['ArrowRight'] || keysPressed['d']) {
+                playerX += playerSpeed;
+            }
+            updatePlayerPosition();
         }
-      }
-    }
-
-    function showUnlockScreen(char) {
-      roomPreview.style.backgroundImage = `url('${char.url}')`;
-      roomName.textContent = char.name;
-      roomBananaScore.textContent = `BANANAS: ${bananaScore}`;
-      roomScreen.classList.remove('hidden');
-    }
-
-    function updateRoomGrid() {
-      roomGrid.innerHTML = '';
-      const allCharacters = { ...defaultCharacters, ...Object.fromEntries(lockedCharacters.map(c => [c.name.toLowerCase(), c])) };
-      const characterArray = Object.entries(allCharacters).slice(0, 9);
-      characterArray.forEach(([id, char]) => {
-        const option = document.createElement('div');
-        option.className = `char-option ${!char.unlocked ? 'locked' : ''} ${selectedChar === id ? 'selected' : ''}`;
-        option.dataset.id = id;
-        option.style.backgroundImage = `url('${char.url}')`;
-        if (!char.unlocked) {
-          option.innerHTML = `<span class="cost">${char.cost} 🍌</span>`;
-        }
-        option.addEventListener('click', () => selectCharacter(option));
-        roomGrid.appendChild(option);
-      });
-      if (Object.entries(allCharacters).length > 9) {
-        const extraChar = Object.entries(allCharacters)[9];
-        const option = document.createElement('div');
-        option.className = `char-option ${!extraChar[1].unlocked ? 'locked' : ''} ${selectedChar === extraChar[0] ? 'selected' : ''}`;
-        option.dataset.id = extraChar[0];
-        option.style.backgroundImage = `url('${extraChar[1].url}')`;
-        if (!extraChar[1].unlocked) {
-          option.innerHTML = `<span class="cost">${extraChar[1].cost} 🍌</span>`;
-        }
-        option.addEventListener('click', () => selectCharacter(option));
-        roomGrid.appendChild(option);
-      }
-    }
-
-    charGrid.addEventListener('click', (e) => {
-      const option = e.target.closest('.char-option');
-      if (option) selectCharacter(option);
-    });
-
-    charGrid.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      const option = e.target.closest('.char-option');
-      if (option) selectCharacter(option);
-    }, { passive: false });
-
-    playButton.addEventListener('click', startNewGame);
-    playAgainButton.addEventListener('click', startNewGame);
-
-    function startNewGame() {
-      charSelect.classList.add('hidden');
-      gameOverScreen.classList.add('hidden');
-      resetGame();
-      muteButton.classList.add('hidden');
-    }
-
-    roomButton.addEventListener('click', () => {
-      updateRoomGrid();
-      roomBananaScore.textContent = `BANANAS: ${bananaScore}`;
-      charSelect.classList.add('hidden');
-      roomScreen.classList.remove('hidden');
-      muteButton.classList.add('hidden');
-      previewedChar = null;
-    });
-
-    roomBackButton.addEventListener('click', () => {
-      updateCharacterGrid();
-      roomScreen.classList.add('hidden');
-      charSelect.classList.remove('hidden');
-      muteButton.classList.remove('hidden');
-      previewedChar = null;
-    });
-
-    highScoreDisplay.textContent = `HIGH: ${highScore}`;
-    totalHighScore.textContent = highScore;
-
-    function saveHighScores() {
-      if (score > highScore) {
-        highScore = score;
-        localStorage.setItem('flappyMonkeyHighScore', highScore);
-        highScoreDisplay.textContent = `HIGH: ${highScore}`;
-        totalHighScore.textContent = highScore;
-        newRecordMsg.classList.remove('hidden');
-      } else {
-        newRecordMsg.classList.add('hidden');
-      }
-    }
-
-    const BASE_OBSTACLE_SPEED = 1.5;
-    const BASE_SPAWN_RATE = 2500;
-    const SPEED_INCREASE_PER_5 = 0.23;
-    const SPAWN_RATE_DECREASE_PER_5 = 200;
-    const GRAVITY = 0.37;
-    const JUMP_STRENGTH = -7.5;
-    const GAP_SIZE = 200;
-    const HITBOX_BUFFER = 10;
-    const GAME_WIDTH = 400;
-    const GAME_HEIGHT = 700;
-    const CHUMP_SIZE = 50;
-    const OBSTACLE_WIDTH = 40;
-    const CHUMP_X = 100;
-    const BANANA_SIZE = 30;
-    const BANANA_SPAWN_CHANCE = 0.45;
-    const MAX_OBSTACLE_SPEED = 5;
-
-    let gameLoopId = null;
-    let obstacleSpawnId = null;
-    let chumpY = GAME_HEIGHT / 2;
-    let chumpVelocity = 0;
-    let obstacles = [];
-    let bananas = [];
-    let score = 0;
-    let isGameOver = true;
-    let isMuted = false;
-    let gameStarted = false;
-    let audioUnlocked = false;
-    let currentObstacleSpeed = BASE_OBSTACLE_SPEED;
-    let currentSpawnRate = BASE_SPAWN_RATE;
-    let awaitingFirstTap = true;
-
-    const bgmUrls = [
-      'https://files.catbox.moe/ivr37p.mp3',
-      'https://files.catbox.moe/m7nr8a.mp3',
-      'https://files.catbox.moe/s3wyqe.mp3'
-    ];
-
-    const bgm1 = new Audio(bgmUrls[0]);
-    bgm1.loop = true;
-    bgm1.volume = 0.3;
-    const bgm2 = new Audio(bgmUrls[1]);
-    bgm2.loop = true;
-    bgm2.volume = 0.3;
-    const bgm3 = new Audio(bgmUrls[2]);
-    bgm3.loop = true;
-    bgm3.volume = 0.3;
-    const bgmList = [bgm1, bgm2, bgm3];
-
-    let currentBGM = null;
-
-    const bananaSound = new Audio('https://files.catbox.moe/pev2v4.wav');
-    bananaSound.volume = 0.23;
-    bananaSound.preload = 'auto';
-
-    function stopBGM() {
-      bgmList.forEach(bgm => {
-        bgm.pause();
-        bgm.currentTime = 0;
-      });
-      currentBGM = null;
-    }
-
-    function playRandomBGM() {
-      if (isMuted || currentBGM || !audioUnlocked) return;
-      stopBGM();
-      const randomIndex = Math.floor(Math.random() * bgmList.length);
-      currentBGM = bgmList[randomIndex];
-      currentBGM.play().catch(() => {});
-    }
-
-    function playBananaSound() {
-      if (!isMuted && audioUnlocked) {
-        bananaSound.currentTime = 0;
-        bananaSound.play().catch(() => {});
-      }
-    }
-
-    function unlockAudio() {
-      if (audioUnlocked) return;
-      const unlock = new Audio();
-      unlock.play().catch(() => {});
-      audioUnlocked = true;
-    }
-
-    function restartSpawnTimer() {
-      if (obstacleSpawnId) {
-        clearInterval(obstacleSpawnId);
-        obstacleSpawnId = setInterval(createObstacle, currentSpawnRate);
-      }
-    }
-
-    function increaseDifficulty() {
-      if (score > 0 && score % 3 === 0 && gameStarted && !isGameOver) {
-        currentObstacleSpeed = Math.min(MAX_OBSTACLE_SPEED, currentObstacleSpeed + SPEED_INCREASE_PER_5);
-        const newRate = Math.max(1200, currentSpawnRate - SPAWN_RATE_DECREASE_PER_5);
-        if (newRate !== currentSpawnRate) {
-          currentSpawnRate = newRate;
-          restartSpawnTimer();
-        }
-      }
-    }
-
-    function updateScore() {
-      scoreDisplay.textContent = score;
-      bananaScoreDisplay.textContent = `BANANAS: ${bananaScore}`;
-      totalHighScore.textContent = highScore;
-      totalBananas.textContent = bananaScore;
-      increaseDifficulty();
-    }
-
-    function resetObstacles() {
-      obstacles.forEach(o => {
-        o.top?.element?.remove();
-        o.bottom?.element?.remove();
-      });
-      obstacles = [];
-    }
-
-    function resetBananas() {
-      bananas.forEach(b => b.element?.remove());
-      bananas = [];
-    }
-
-    function resetGame() {
-      if (gameLoopId) cancelAnimationFrame(gameLoopId);
-      if (obstacleSpawnId) clearInterval(obstacleSpawnId);
-      stopBGM();
-      isGameOver = false;
-      gameStarted = false;
-      score = 0;
-      currentObstacleSpeed = BASE_OBSTACLE_SPEED;
-      currentSpawnRate = BASE_SPAWN_RATE;
-      chumpY = GAME_HEIGHT / 2;
-      chumpVelocity = 0;
-      updateScore();
-      resetObstacles();
-      resetBananas();
-      chump.style.display = 'block';
-      chump.style.top = `${chumpY}px`;
-      newRecordMsg.classList.add('hidden');
-      awaitingFirstTap = true;
-    }
-
-    function endGame() {
-      if (isGameOver) return;
-      isGameOver = true;
-      cancelAnimationFrame(gameLoopId);
-      clearInterval(obstacleSpawnId);
-      stopBGM();
-      chump.style.display = 'none';
-      finalScoreDisplay.textContent = `Your Score: ${score}`;
-      finalBananaScoreDisplay.textContent = `Bananas Collected: ${bananaScore}`;
-      saveHighScores();
-      localStorage.setItem('flappyMonkeyBananaScore', bananaScore);
-      Object.keys(defaultCharacters).forEach(char => {
-        localStorage.setItem(`flappyCharUnlocked_${char}`, defaultCharacters[char].unlocked);
-      });
-      lockedCharacters.forEach((char, index) => {
-        localStorage.setItem(`flappyCharUnlocked_locked_${index}`, char.unlocked);
-      });
-      gameOverScreen.classList.remove('hidden');
-      muteButton.classList.add('hidden');
-      if (score > highScore) {
-        submitScore();
-      }
-    }
-
-    function flap() {
-      if (isGameOver) return;
-      unlockAudio();
-      if (awaitingFirstTap) {
-        awaitingFirstTap = false;
-        gameStarted = true;
-        gameLoopId = requestAnimationFrame(updateGame);
-        obstacleSpawnId = setInterval(createObstacle, currentSpawnRate);
-        playRandomBGM();
-      }
-      chumpVelocity = JUMP_STRENGTH;
-      chump.style.transform = 'rotate(-15deg)';
-    }
-
-    function createObstacle() {
-      const minHeight = 50;
-      const maxTopHeight = GAME_HEIGHT - (2 * minHeight) - GAP_SIZE;
-      const topHeight = Math.floor(Math.random() * (maxTopHeight - minHeight + 1)) + minHeight;
-      const bottomHeight = GAME_HEIGHT - topHeight - GAP_SIZE;
-      const obstacleX = GAME_WIDTH;
-
-      const topPipe = document.createElement('div');
-      topPipe.className = 'obstacle top';
-      topPipe.style.height = `${topHeight}px`;
-      topPipe.style.width = `${OBSTACLE_WIDTH}px`;
-      topPipe.style.left = `${obstacleX}px`;
-      gameBoard.appendChild(topPipe);
-
-      const bottomPipe = document.createElement('div');
-      bottomPipe.className = 'obstacle bottom';
-      bottomPipe.style.height = `${bottomHeight}px`;
-      bottomPipe.style.width = `${OBSTACLE_WIDTH}px`;
-      bottomPipe.style.left = `${obstacleX}px`;
-      gameBoard.appendChild(bottomPipe);
-
-      obstacles.push({
-        x: obstacleX,
-        top: { element: topPipe, height: topHeight },
-        bottom: { element: bottomPipe, height: bottomHeight },
-        passed: false
-      });
-
-      if (Math.random() < BANANA_SPAWN_CHANCE) {
-        createBanana(obstacleX, topHeight);
-      }
-    }
-
-    function createBanana(obstacleX, gapTop) {
-      if (!gameStarted || isGameOver) return;
-      const bananaY = gapTop + (GAP_SIZE / 2) - (BANANA_SIZE / 2);
-      const bananaElement = document.createElement('div');
-      bananaElement.className = 'banana';
-      bananaElement.textContent = '🍌';
-      bananaElement.style.left = `${obstacleX}px`;
-      bananaElement.style.top = `${bananaY}px`;
-      gameBoard.appendChild(bananaElement);
-
-      bananas.push({
-        x: obstacleX,
-        y: bananaY,
-        element: bananaElement
-      });
-    }
-
-    function updateObstacles() {
-      for (let i = obstacles.length - 1; i >= 0; i--) {
-        const obs = obstacles[i];
-        obs.x -= currentObstacleSpeed;
-        obs.top.element.style.left = `${obs.x}px`;
-        obs.bottom.element.style.left = `${obs.x}px`;
-
-        if (obs.x + OBSTACLE_WIDTH < CHUMP_X && !obs.passed) {
-          score++;
-          updateScore();
-          obs.passed = true;
+        
+        // --- Shooting Logic ---
+        
+        function createBullet(x, y, isPoweredUp = false) {
+            const bullet = document.createElement('div');
+            bullet.className = 'bullet';
+            if (isPoweredUp) {
+                bullet.classList.add('powered-up');
+            }
+            bullet.style.left = x + 'px';
+            bullet.style.top = y + 'px';
+            gameBoard.appendChild(bullet);
+            bullets.push({ 
+                element: bullet, 
+                x: x, 
+                y: y, 
+                isPoweredUp: isPoweredUp 
+            });
         }
 
-        if (obs.x < -OBSTACLE_WIDTH) {
-          obs.top.element.remove();
-          obs.bottom.element.remove();
-          obstacles.splice(i, 1);
-        }
-        checkCollision(obs);
-      }
-    }
+        function handleShooting() {
+            if (isPaused || gameOver) return; 
 
-    function updateBananas() {
-      for (let i = bananas.length - 1; i >= 0; i--) {
-        const banana = bananas[i];
-        banana.x -= currentObstacleSpeed;
-        banana.element.style.left = `${banana.x}px`;
+            const center = playerX + (playerWidth / 2) - 2; 
+            const top = boardHeight - playerWidth - 12; 
 
-        const chumpTop = chumpY;
-        const chumpBottom = chumpY + CHUMP_SIZE;
-        const bananaTop = banana.y;
-        const bananaBottom = banana.y + BANANA_SIZE;
-        if (CHUMP_X + CHUMP_SIZE > banana.x && CHUMP_X < banana.x + BANANA_SIZE &&
-            chumpBottom > bananaTop && chumpTop < bananaBottom) {
-          banana.element.remove();
-          bananas.splice(i, 1);
-          bananaScore++;
-          updateScore();
-          playBananaSound();
+            if (powerUpTimer > 0) {
+                // Triple Shot
+                createBullet(center - 15, top, true);
+                createBullet(center, top, true);
+                createBullet(center + 15, top, true);
+            } else {
+                // Single Shot
+                createBullet(center, top);
+            }
         }
 
-        if (banana.x < -BANANA_SIZE) {
-          banana.element.remove();
-          bananas.splice(i, 1);
+        // --- Control Setup and UI Logic ---
+
+        function setupControls(type) {
+            const existingButtons = controlsDiv.querySelectorAll('.movement-button');
+            existingButtons.forEach(btn => btn.remove());
+            
+            controlsDiv.classList.remove('button-controls');
+            player.style.cursor = 'grab';
+            
+            if (type === 'touch') {
+                movementInstructions.innerHTML = '<strong>Movement:</strong> **Touch and drag** the monkey 🐵 left and right!';
+            } else { 
+                movementInstructions.innerHTML = '<strong>Movement:</strong> Use ◀️ and ▶️ buttons or the A/D keys.';
+                controlsDiv.classList.add('button-controls');
+                player.style.cursor = 'default';
+
+                const moveLeftButton = document.createElement('button');
+                moveLeftButton.id = 'move-left';
+                moveLeftButton.className = 'movement-button';
+                moveLeftButton.textContent = '◀️';
+                
+                const moveRightButton = document.createElement('button');
+                moveRightButton.id = 'move-right';
+                moveRightButton.className = 'movement-button';
+                moveRightButton.textContent = '▶️';
+                
+                controlsDiv.insertBefore(moveLeftButton, shootButton);
+                controlsDiv.appendChild(moveRightButton);
+                
+                // Add button listeners
+                moveLeftButton.addEventListener('mousedown', () => keysPressed['ArrowLeft'] = true);
+                moveLeftButton.addEventListener('mouseup', () => keysPressed['ArrowLeft'] = false);
+                moveLeftButton.addEventListener('touchstart', (e) => { e.preventDefault(); keysPressed['ArrowLeft'] = true; });
+                moveLeftButton.addEventListener('touchend', () => keysPressed['ArrowLeft'] = false);
+
+                moveRightButton.addEventListener('mousedown', () => keysPressed['ArrowRight'] = true);
+                moveRightButton.addEventListener('mouseup', () => keysPressed['ArrowRight'] = false);
+                moveRightButton.addEventListener('touchstart', (e) => { e.preventDefault(); keysPressed['ArrowRight'] = true; });
+                moveRightButton.addEventListener('touchend', () => keysPressed['ArrowRight'] = false);
+            }
+            
+            controlType = type;
+            localStorage.setItem(CONTROL_TYPE_KEY, controlType);
         }
-      }
-    }
+        
+        // --- Game Lifecycle Functions ---
 
-    function checkCollision(obstacle) {
-      const chumpTop = chumpY;
-      const chumpBottom = chumpY + CHUMP_SIZE;
-      const obsLeft = obstacle.x;
-      const obsRight = obstacle.x + OBSTACLE_WIDTH;
-      if (CHUMP_X + CHUMP_SIZE - HITBOX_BUFFER > obsLeft && CHUMP_X + HITBOX_BUFFER < obsRight) {
-        const hitTop = chumpTop + HITBOX_BUFFER < obstacle.top.height;
-        const hitBottom = chumpBottom - HITBOX_BUFFER > (GAME_HEIGHT - obstacle.bottom.height);
-        if (hitTop || hitBottom) endGame();
-      }
-    }
-
-    function updateChump() {
-      chumpVelocity += GRAVITY;
-      chumpY += chumpVelocity;
-      chump.style.top = `${chumpY}px`;
-      const rotation = Math.min(Math.max(chumpVelocity * 2, -15), 90);
-      chump.style.transform = `rotate(${rotation}deg)`;
-      if (chumpY > GAME_HEIGHT - CHUMP_SIZE || chumpY < 0) endGame();
-    }
-
-    function updateGame() {
-      if (isGameOver) return;
-      updateChump();
-      updateObstacles();
-      updateBananas();
-      gameLoopId = requestAnimationFrame(updateGame);
-    }
-
-    let selectedCharToUnlock = null;
-
-    function showUnlockConfirmation(char) {
-      selectedCharToUnlock = char;
-      unlockPreview.style.backgroundImage = `url('${char.url}')`;
-      unlockMessage.textContent = `Unlock for ${char.cost} bananas?`;
-      unlockConfirmation.classList.remove('hidden');
-    }
-
-    function performUnlock() {
-      if (bananaScore >= selectedCharToUnlock.cost) {
-        bananaScore -= selectedCharToUnlock.cost;
-        selectedCharToUnlock.unlocked = true;
-        updateScore();
-        roomBananaScore.textContent = `BANANAS: ${bananaScore}`;
-        const index = lockedCharacters.findIndex(c => c.name.toLowerCase() === selectedCharToUnlock.name.toLowerCase());
-        localStorage.setItem(`flappyCharUnlocked_locked_${index}`, 'true');
-        updateRoomGrid();
-        unlockConfirmation.classList.add('hidden');
-        previewedChar = null;
-      } else {
-        unlockMessage.textContent = "Not enough bananas!";
-      }
-    }
-
-    roomScreen.addEventListener('click', (e) => {
-      const option = e.target.closest('.char-option');
-      if (option) {
-        const charName = option.dataset.id;
-        const char = lockedCharacters.find(c => c.name.toLowerCase() === charName.toLowerCase()) || defaultCharacters[charName];
-        if (char) selectCharacter(option);
-      }
-    });
-
-    unlockButton.addEventListener('click', () => {
-      performUnlock();
-    });
-
-    backButton.addEventListener('click', () => {
-      unlockMessage.textContent = `Unlock for ${selectedCharToUnlock.cost} bananas?`;
-      unlockConfirmation.classList.add('hidden');
-    });
-
-    goHomeButton.addEventListener('click', () => {
-      updateCharacterGrid();
-      gameOverScreen.classList.add('hidden');
-      charSelect.classList.remove('hidden');
-      muteButton.classList.remove('hidden');
-    });
-    howtoButton.addEventListener('click', () => howtoScreen.classList.remove('hidden'));
-    howtoCloseButton.addEventListener('click', () => howtoScreen.classList.add('hidden'));
-    muteButton.addEventListener('click', () => {
-      if (!muteButton.classList.contains('hidden')) {
-        isMuted = !isMuted;
-        muteButton.textContent = isMuted ? 'Muted' : 'Speaker';
-        if (isMuted && currentBGM) currentBGM.pause();
-        else if (currentBGM && gameStarted) currentBGM.play().catch(() => {});
-      }
-    });
-
-    gameBoard.addEventListener('click', (e) => {
-      if (e.target.closest('button') || e.target.closest('div[id$="-screen"]')) return;
-      flap();
-    });
-
-    gameBoard.addEventListener('touchstart', e => {
-      if (e.target.closest('button') || e.target.closest('div[id$="-screen"]')) return;
-      e.preventDefault();
-      flap();
-    }, { passive: false });
-
-    document.addEventListener('keydown', e => {
-      if (e.code === 'Space') { e.preventDefault(); flap(); }
-      else if (e.key.toLowerCase() === 'm') {
-        if (!muteButton.classList.contains('hidden')) {
-          isMuted = !isMuted;
-          muteButton.textContent = isMuted ? 'Muted' : 'Speaker';
-          if (isMuted && currentBGM) currentBGM.pause();
-          else if (currentBGM && gameStarted) currentBGM.play().catch(() => {});
+        function loadHighScore() {
+            const storedScore = localStorage.getItem(HIGH_SCORE_KEY);
+            if (storedScore) {
+                highScore = parseInt(storedScore);
+                highScoreDisplay.textContent = `High Score: ${highScore}`;
+            }
         }
-      }
-    });
+        
+        function startGame() {
+            if (!gameOver && gameLoopId) return; 
 
-    updateScore();
+            // Clear any old loops
+            cancelAnimationFrame(gameLoopId);
+            clearInterval(enemySpawnId);
+            clearInterval(bulletCleanupId);
+            
+            // Clean up previous game visuals
+            bullets.forEach(b => b.element.remove());
+            enemies.forEach(e => e.element.remove());
+            bullets = [];
+            enemies = [];
+            
+            // Reset state
+            score = 0;
+            lives = 3;
+            playerX = (boardWidth / 2) - (playerWidth / 2);
+            isPaused = false;
+            gameOver = false;
+            powerUpTimer = 0;
+            player.innerHTML = '🐵';
+            enemySpawnRate = 1500; 
+            
+            updateScore(0);
+            updateLives(0); 
+            updatePlayerPosition(); 
+            
+            gameOverScreen.classList.add('hidden');
+            // FIX: Show controls only when game is active
+            pauseButton.classList.remove('hidden');
+            settingsButton.classList.remove('hidden');
 
-    // Leaderboard functionality
-    leaderboardButton.addEventListener('click', () => {
-      loadLeaderboard();
-      charSelect.classList.add('hidden');
-      leaderboardScreen.classList.remove('hidden');
-      muteButton.classList.add('hidden');
-    });
+            // Start loops
+            gameLoopId = requestAnimationFrame(updateGame);
+            enemySpawnId = setInterval(spawnEnemy, enemySpawnRate);
+            bulletCleanupId = setInterval(() => {
+                if (!isPaused && !gameOver) {
+                    if (powerUpTimer > 0) {
+                        powerUpTimer -= 1000; 
+                        if (powerUpTimer <= 0) {
+                            player.innerHTML = '🐵';
+                        }
+                    }
+                }
+            }, 1000); 
+        }
+        
+        function endGame(isStartup = false) {
+            if (!isStartup) gameOver = true;
 
-    leaderboardBackButton.addEventListener('click', () => {
-      leaderboardScreen.classList.add('hidden');
-      charSelect.classList.remove('hidden');
-      muteButton.classList.remove('hidden');
-    });
+            cancelAnimationFrame(gameLoopId);
+            clearInterval(enemySpawnId);
+            clearInterval(bulletCleanupId);
+            gameLoopId = null;
+            enemySpawnId = null;
+            bulletCleanupId = null;
 
-    function loadLeaderboard() {
-      const leaderboardRef = collection(db, 'leaderboard');
-      console.log("Setting up leaderboard listener...");
-      onSnapshot(leaderboardRef, (snapshot) => {
-        leaderboardList.innerHTML = '';
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          const entry = document.createElement('div');
-          entry.className = 'leaderboard-entry';
-          entry.innerHTML = `<span>${data.displayName}: High ${data.highScore}, Bananas ${data.bananaScore}</span>`;
-          leaderboardList.appendChild(entry);
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem(HIGH_SCORE_KEY, highScore);
+            }
+
+            gameOverScreen.classList.remove('hidden');
+            helpScreen.classList.add('hidden');
+            settingsScreen.classList.add('hidden');
+            
+            // FIX: Hide controls when game is over
+            pauseButton.classList.add('hidden');
+            settingsButton.classList.add('hidden');
+
+            document.getElementById('screen-title').textContent = isStartup ? 'THE JUNGLE MONKEY' : 'GAME OVER!';
+            finalScoreDisplay.textContent = `FINAL SCORE: ${score}`;
+            gameOverHighScore.textContent = `HIGH SCORE: ${highScore}`;
+            
+            restartButton.textContent = isStartup ? 'Start Game' : 'Play Again';
+            gameOverHighScore.classList.remove('hidden');
+
+            // Reset player visuals
+            player.innerHTML = '🐵';
+            playerX = (boardWidth / 2) - (playerWidth / 2);
+            updatePlayerPosition();
+        }
+        
+        function togglePause() { 
+            if (gameOver || helpScreen.classList.contains('hidden') === false || settingsScreen.classList.contains('hidden') === false) return; 
+
+            isPaused = !isPaused;
+            pauseButton.textContent = isPaused ? 'RESUME' : 'PAUSE';
+
+            if (isPaused) {
+                cancelAnimationFrame(gameLoopId);
+                clearInterval(enemySpawnId);
+                gameLoopId = null;
+                enemySpawnId = null;
+            } else {
+                gameLoopId = requestAnimationFrame(updateGame);
+                enemySpawnId = setInterval(spawnEnemy, enemySpawnRate);
+            }
+        }
+        
+        function toggleSettings(state) {
+            const shouldOpen = (state === 'open' || settingsScreen.classList.contains('hidden'));
+            
+            if (shouldOpen) {
+                 // Only pause if game is running
+                 if (gameOver === false && isPaused === false) togglePause(); 
+                 
+                 gameOverScreen.classList.add('hidden');
+                 helpScreen.classList.add('hidden');
+                 
+                 settingsScreen.classList.remove('hidden');
+                 controlTypeSelect.value = controlType; 
+                 controlsDiv.style.opacity = '0.5';
+                 
+                 // Hide in-game buttons when settings is open
+                 pauseButton.classList.add('hidden');
+                 settingsButton.classList.add('hidden');
+            } else {
+                settingsScreen.classList.add('hidden');
+                setupControls(controlTypeSelect.value); 
+                controlsDiv.style.opacity = '1';
+                
+                if (gameOver) {
+                    endGame(true); 
+                } else {
+                    // Show in-game buttons again and resume
+                    pauseButton.classList.remove('hidden');
+                    settingsButton.classList.remove('hidden');
+                    if (isPaused) togglePause(); 
+                }
+            }
+        }
+
+        // --- Game Logic (Score, Lives, Enemy Spawning, Collision) ---
+        
+        function updateScore(points) {
+            score += points;
+            scoreDisplay.textContent = `Score: ${score}`;
+        }
+        
+        function updateLives(change = 0) {
+            lives += change;
+            livesDisplay.textContent = `Lives: ${'❤️'.repeat(lives)}`;
+            if (lives <= 0) {
+                endGame();
+            }
+        }
+        
+        function spawnEnemy() {
+            const totalWeight = Object.values(enemyTypes).flat().length;
+            const rand = Math.floor(Math.random() * totalWeight);
+            let emoji, type, points, speed;
+
+            // Simple weighted random selection
+            if (rand < enemyTypes.normal.length * 2) { 
+                emoji = enemyTypes.normal[Math.floor(Math.random() * enemyTypes.normal.length)];
+                type = 'normal';
+                points = 10;
+                speed = Math.random() * 1.5 + 1.5; 
+            } else if (rand < enemyTypes.normal.length * 2 + enemyTypes.bonus.length) { 
+                emoji = enemyTypes.bonus[Math.floor(Math.random() * enemyTypes.bonus.length)];
+                type = 'bonus';
+                points = emoji === '🤑' ? 50 : 30; 
+                speed = Math.random() * 0.5 + 1;
+            } else if (rand < enemyTypes.normal.length * 2 + enemyTypes.bonus.length + enemyTypes.negative.length) { 
+                emoji = enemyTypes.negative[Math.floor(Math.random() * enemyTypes.negative.length)];
+                type = 'negative';
+                points = -30;
+                speed = Math.random() * 1 + 2; 
+            } else { 
+                emoji = enemyTypes.powerup[0];
+                type = 'powerup';
+                points = 0;
+                speed = 1; 
+            }
+
+            const enemy = document.createElement('div');
+            enemy.className = 'enemy';
+            enemy.textContent = emoji;
+            const x = Math.random() * (boardWidth - enemyHeight);
+            
+            enemy.style.left = x + 'px';
+            enemy.style.top = '-40px'; 
+            gameBoard.appendChild(enemy);
+
+            enemies.push({ element: enemy, x: x, y: -40, type: type, points: points, speed: speed });
+        }
+
+        function checkCollision() {
+            // Check bullet-enemy collisions
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                const bRect = b.element.getBoundingClientRect();
+                
+                for (let j = enemies.length - 1; j >= 0; j--) {
+                    const e = enemies[j];
+                    const eRect = e.element.getBoundingClientRect();
+                    
+                    if (bRect.left < eRect.right && bRect.right > eRect.left &&
+                        bRect.top < eRect.bottom && bRect.bottom > eRect.top) {
+                        
+                        updateScore(e.points);
+                        
+                        if (e.type === 'powerup') {
+                            powerUpTimer = POWERUP_DURATION;
+                            player.innerHTML = '🦍'; 
+                        }
+
+                        b.element.remove();
+                        bullets.splice(i, 1);
+                        e.element.remove();
+                        enemies.splice(j, 1);
+                        
+                        break; 
+                    }
+                }
+            }
+
+            // Check enemy-player collision
+            const pRect = player.getBoundingClientRect();
+            for (let j = enemies.length - 1; j >= 0; j--) {
+                const e = enemies[j];
+                const eRect = e.element.getBoundingClientRect();
+                
+                if (pRect.left < eRect.right && pRect.right > eRect.left &&
+                    pRect.top < eRect.bottom && pRect.bottom > eRect.top) {
+                    
+                    if (e.type === 'normal' || e.type === 'negative') {
+                        updateLives(-1); 
+                    } else if (e.type === 'powerup') {
+                         powerUpTimer = POWERUP_DURATION;
+                         player.innerHTML = '🦍'; 
+                    } else {
+                        updateScore(e.points);
+                    }
+                    
+                    e.element.remove();
+                    enemies.splice(j, 1);
+                }
+            }
+        }
+    
+        // --- Core Game Loop ---
+        
+        function updateGame() {
+            if (gameOver || isPaused) return; 
+
+            // 1. Handle Player Movement
+            if (controlType === 'buttons') {
+                handleKeyboardMovement();
+            } 
+            
+            // 2. Handle Bullet Movement
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                b.y -= bulletSpeed;
+                b.element.style.top = b.y + 'px';
+
+                if (b.y < -bulletHeight) {
+                    b.element.remove();
+                    bullets.splice(i, 1);
+                }
+            }
+
+            // 3. Handle Enemy Movement and Game Over Check
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const e = enemies[i];
+                e.y += e.speed;
+                e.element.style.top = e.y + 'px';
+                
+                // Check if enemy passed the bottom
+                if (e.y > boardHeight) {
+                    if (e.type === 'normal') {
+                        updateLives(-1); // Lose a life if a normal enemy passes the bottom
+                    }
+                    e.element.remove();
+                    enemies.splice(i, 1);
+                    
+                    // Difficulty increase
+                    enemySpawnRate = Math.max(500, enemySpawnRate - 5);
+                    clearInterval(enemySpawnId);
+                    enemySpawnId = setInterval(spawnEnemy, enemySpawnRate);
+                }
+            }
+
+            // 4. Check for Collisions
+            checkCollision();
+
+            gameLoopId = requestAnimationFrame(updateGame);
+        }
+        
+        // --- Touch Control Functions ---
+
+        function handlePointerDown(e) {
+             if (gameOver || isPaused || controlType !== 'touch') return;
+
+             const target = e.target;
+             if (target === player) {
+                 isDragging = true;
+                 lastTouchX = e.clientX || e.touches[0].clientX; 
+                 e.preventDefault(); 
+             }
+        }
+
+        function handlePointerMove(e) {
+            if (!isDragging || gameOver || isPaused || controlType !== 'touch') return;
+            
+            const currentTouchX = e.clientX || e.touches[0].clientX;
+            const deltaX = currentTouchX - lastTouchX;
+            
+            playerX += deltaX;
+            updatePlayerPosition(); 
+            
+            lastTouchX = currentTouchX;
+            e.preventDefault(); 
+        }
+
+        function handlePointerUp() {
+            isDragging = false;
+        }
+
+        // --- Event Listeners ---
+        
+        document.addEventListener('keydown', (event) => {
+             if (event.key.toLowerCase() === 'p') {
+                togglePause();
+            }
+            
+            if (gameOver || isPaused) return; 
+            
+            keysPressed[event.key] = true;
+            if (event.key === ' ') {
+                handleShooting(); 
+                event.preventDefault(); 
+            }
         });
-        console.log("Leaderboard updated with", snapshot.size, "entries");
-      }, (error) => {
-        console.error("Leaderboard listener error: ", error);
-        setTimeout(() => loadLeaderboard(), 2000); // Retry after 2 seconds
-      });
-    }
 
-    function submitScore() {
-      const leaderboardRef = collection(db, 'leaderboard');
-      addDoc(leaderboardRef, {
-        playerName: uuid,
-        displayName: displayName,
-        highScore: highScore,
-        bananaScore: bananaScore,
-        timestamp: new Date()
-      }).then(() => {
-        console.log("Score submitted successfully");
-      }).catch((error) => {
-        console.error("Error submitting score: ", error);
-      });
-    }
-  </script>
+        document.addEventListener('keyup', (event) => {
+            if (gameOver || isPaused) return; 
+            keysPressed[event.key] = false;
+        });
+
+        // Touch Listeners 
+        player.addEventListener('pointerdown', handlePointerDown);
+        document.addEventListener('pointermove', handlePointerMove);
+        document.addEventListener('pointerup', handlePointerUp);
+
+        player.addEventListener('touchstart', handlePointerDown);
+        document.addEventListener('touchmove', handlePointerMove);
+        player.addEventListener('touchend', handlePointerUp);
+
+        // Button Listeners
+        restartButton.addEventListener('click', startGame);
+        restartButton.addEventListener('touchstart', (e) => { e.preventDefault(); startGame(); });
+
+        shootButton.addEventListener('click', handleShooting);
+        shootButton.addEventListener('touchstart', (e) => { e.preventDefault(); handleShooting(); }); 
+
+        pauseButton.addEventListener('click', togglePause);
+        pauseButton.addEventListener('touchstart', (e) => { e.preventDefault(); togglePause(); });
+
+        settingsButton.addEventListener('click', () => toggleSettings('open'));
+        settingsButton.addEventListener('touchstart', (e) => { e.preventDefault(); toggleSettings('open'); });
+        
+        closeSettingsButton.addEventListener('click', () => toggleSettings('close'));
+        closeSettingsButton.addEventListener('touchstart', (e) => { e.preventDefault(); toggleSettings('close'); });
+        
+        openSettingsLink.addEventListener('click', () => toggleSettings('open'));
+        openSettingsLink.addEventListener('touchstart', (e) => { e.preventDefault(); toggleSettings('open'); });
+
+        // Help Screen Listeners
+        closeHelpButton.addEventListener('click', () => helpScreen.classList.add('hidden'));
+        openHelpLink.addEventListener('click', () => helpScreen.classList.remove('hidden'));
+        
+        document.getElementById('open-help-link').addEventListener('click', () => helpScreen.classList.remove('hidden'));
+        document.getElementById('open-help-link').addEventListener('touchstart', (e) => { e.preventDefault(); helpScreen.classList.remove('hidden'); });
+
+        // --- Initialization ---
+
+        function init() {
+            loadHighScore();
+            controlTypeSelect.value = controlType;
+            setupControls(controlType);
+            updateScore(0);
+            updateLives(0); 
+            
+            gameOver = true;
+            endGame(true); 
+        }
+
+        init(); 
+    </script>
 </body>
 </html>
+ 
